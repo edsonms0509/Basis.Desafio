@@ -1,0 +1,157 @@
+@page "/cadastro-livro-lista"
+@inject ILivroService livroService
+@inject NavigationManager navigation
+@inject IJSRuntime JsRuntime
+@inherits CrudBase
+
+<PageTitle>Cadastro de Livros</PageTitle>
+<ExibirSpinner Visible="@ExibindoSpinner" />
+<ExibirErro @ref="Erro" />
+
+<h5>Cadastro de Livros - Lista</h5>
+
+<div class="card p-2">
+    <div class="row">
+        <div class="col-12">
+            <CustomTable TItem="Livro"
+                        Items="genericItems"
+                        Columns="colunas"
+                        @ref="customTable">
+                <CustomContent>
+                    <button type="button" class="btn btn-sm btn-primary me-2" onclick="@(() => IrParaCadastros(0))" style="width: 100px;">
+                        <i class="bi bi-plus-lg"></i> Novo
+                    </button>
+                </CustomContent>
+                <RowTemplate>
+                    <th>@context.Codl</th>
+                    <td>@context.Titulo</td>
+                    <td>@context.Editora</td>
+                    <td>@context.Edicao</td>
+                    <td>@context.AnoPublicacao</td>
+                    <td>
+                        <EditDeleteButtom OnEdit="@(() => IrParaCadastros(context.Codl))"
+                            OnDelete="@(() => ConfirmarExclusaoAsync(context))" />
+                    </td>
+                </RowTemplate>
+            </CustomTable>
+        </div>
+    </div>
+</div>
+
+<ModalConfirmar Id="modal-confirm" Title="Aviso" HtmlMessage="@HtmlMessage" OnConfirm="ExcluirAsync" />
+
+@code {
+
+    public CustomTable<Livro> customTable = default!;
+    private List<Livro> genericItems = new();
+
+    private List<CustomTable<Livro>.ColumnDefinition> colunas = new()
+    {
+        new() { Title = "#", PropertyName = "Codl", Width = 5 },
+        new() { Title = "Título", PropertyName = "Titulo", Width = 30 },
+        new() { Title = "Editora", PropertyName = "Editora", Width = 20 },
+        new() { Title = "Edição", PropertyName = "Edicao", Width = 15 },
+        new() { Title = "Publicação", PropertyName = "AnoPublicacao", Width = 20, Colspan="2" },
+    };
+    
+    private string HtmlMessage { get; set; } = string.Empty;
+    private int SelectedId; 
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            //carregar a grid
+            await LoadGridAsync();
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+
+    private void IrParaCadastros(int id)
+    {
+        navigation.NavigateTo($"/cadastro-livro/{id}");
+    }
+
+    private async Task ConfirmarExclusaoAsync(Livro context)
+    {
+        SelectedId = context.Codl;
+
+        HtmlMessage = $"<p>Confirma a <b>exclusão</b> do livro #{context.Codl} ?</p><br>";
+        HtmlMessage += "<div style='margin-left: 15px;'>";
+        HtmlMessage += $"<p>Título: {context.Titulo}</p>";
+        HtmlMessage += "</div>";
+
+        //open modal confirm
+        await JsRuntime.InvokeVoidAsync("ShowModal", "modal-confirm");
+    }
+
+    private async Task ExcluirAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            await livroService.Delete(SelectedId);
+
+            //atualizar a lista da grid
+            var item = genericItems.FirstOrDefault(p => p.Codl == SelectedId);
+            
+            if (item != null)
+            {
+                genericItems.Remove(item);
+            }
+
+            //atualizar a grid
+            customTable.Refresh();
+            StateHasChanged();
+
+            await JsRuntime.InvokeVoidAsync("CloseModal");
+
+            //Toast
+            await JsRuntime.InvokeVoidAsync("ShowToast", $"O livro '{item?.Titulo}' foi excluído");
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+
+    private async Task LoadGridAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            var items = await livroService.GetItemsAsync();
+            
+            genericItems.Clear();
+            genericItems = items.OrderBy(g => g.Codl).ToList();
+
+            customTable.Refresh();
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+}

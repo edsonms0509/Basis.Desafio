@@ -1,0 +1,182 @@
+@using System.Globalization
+@inject ICanalVendaService canalVendaService
+
+<!-- Modal -->
+<div class="modal fade" id="@Id" tabindex="-1" aria-labelledby="@Id-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="padding: 6px 15px 6px 15px;">
+        <h5 class="modal-title" id="@Id-label">Incluir Preço Venda</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="padding-top: 0px; padding-bottom: 5px;">
+        <div style="font-size: 14px;">
+            <div class="p-2">
+                <div class="row">
+                    <div class="col-12 d-flex align-items-center">
+                        <div class="w-100">
+                            <label class="form-label" for="selectCanalDeVenda">Canal de Venda</label>
+                            <SelectOptions Id="selectCanalDeVenda" TItem="Canal_De_Venda" Items="CanaisDeVenda" 
+                                GetValue="x => x.Cod_Tpv" GetText="x => x.Descricao"
+                                @bind-Value="Cod_Tpv" FontSize="0.87rem" />
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-4 d-flex align-items-center">
+                        <div class="w-100">
+                            <label class="form-label" for="selectEngDigital">Preço de Venda</label>
+                            <NumericInput @bind-Valor="PrecoDeVenda" AceitaDecimal="true" 
+                                MaxDigitosInteiros="8" MaxCasasDecimais="2" Class="form-control text-end" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 5px 15px 5px 15px;">
+        <button type="button" class="btn btn-sm btn-outline-primary" style="width: 100px;"
+            onclick="@( async () => HandleInvokeConfirmAsync())">
+            <i class="bi bi-check-circle"></i> Confirmar
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" 
+            data-bs-dismiss="modal" style="width: 100px;">
+            <i class="bi bi-arrow-left-circle"></i> Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+@code {
+
+    [Inject]
+    private IJSRuntime JsRuntime { get; set; } = default!;
+
+    [Parameter]
+    public string Id { get; set; } = "modal-livro-preco-venda";
+
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    [Parameter]
+    public LivroPrecoVendaModel SelectedPrecoVenda { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<LivroPrecoVendaModel> SelectedPrecoVendaChanged { get; set; }
+
+    [Parameter]
+    public List<LivroPrecoVendaModel> ListaSelectedPrecosVenda { get; set; } = new();
+    
+    private int Cod_Tpv { get; set; }
+    
+    private List<Canal_De_Venda> CanaisDeVenda { get; set; } = [];
+    private string PrecoDeVenda { get; set; } = string.Empty;
+
+    private async Task HandleInvokeConfirmAsync()
+    {
+        if (! await IsValidFields() )
+        {
+            return;
+        }
+
+        var canalDeVenda = CanaisDeVenda.FirstOrDefault(a => a.Cod_Tpv == Cod_Tpv) ?? default!;
+
+        if (canalDeVenda != null)
+        {
+            TryConvertToDecimal(PrecoDeVenda, out decimal precoDeVenda);
+
+            var selectedPrecoVenda = new LivroPrecoVendaModel 
+            {
+                Canal_De_Venda_Cod_Tpv = canalDeVenda.Cod_Tpv,
+                DescricaoCanalVenda = canalDeVenda.Descricao,
+                Preco_De_Venda = precoDeVenda
+            };
+
+            await SelectedPrecoVendaChanged.InvokeAsync(selectedPrecoVenda);
+            await OnConfirm.InvokeAsync();
+        }
+
+        await JsRuntime.InvokeVoidAsync("CloseModal");
+    }
+
+    private async Task<bool> IsValidFields()
+    {
+        IList<string> fields = new List<string>();
+        
+        if (IsNotValid(Cod_Tpv))
+        {
+            fields.Add(" * Canal de Venda");
+        }
+
+        if (!TryConvertToDecimal(PrecoDeVenda, out decimal preco))
+        {
+            fields.Add(" * Preço de Venda");
+        }
+
+        var exist = ListaSelectedPrecosVenda.Any(p => p.Canal_De_Venda_Cod_Tpv == Cod_Tpv);
+        if (exist)
+        {
+            await JsRuntime.InvokeVoidAsync("ShowToastWarning", $"<b>O canal de venda já está adicionado</b>Selecione outro");
+            return false;
+        }
+
+        if (fields.Count > 0)
+        {
+            var fieldsInfo = String.Join("<br>", fields.ToArray());;
+            await ToastValidationInfo(fieldsInfo);
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool IsNotValid(int value)
+    {
+        return value == 0;
+    }
+
+    private async Task ToastValidationInfo(string fields)
+    {
+        await JsRuntime.InvokeVoidAsync("ShowToastWarning", $"<b>Necessário informar os campos:</b><br>{fields}.");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            //carregar canal de venda
+            var canaisDeVenda = await canalVendaService.GetItemsAsync();
+            CanaisDeVenda = canaisDeVenda?.ToList() ?? new();
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    public void Clear()
+    {
+        Cod_Tpv = 0;
+        PrecoDeVenda = string.Empty;
+
+        StateHasChanged();
+    }
+
+    private bool TryConvertToDecimal(string input, out decimal result)
+    {
+        // Tenta primeiro com a cultura atual
+        if (decimal.TryParse(input, NumberStyles.Any, CultureInfo.CurrentCulture, out result))
+            return true;
+        
+        // Tenta com cultura invariante (ponto decimal)
+        if (decimal.TryParse(input, NumberStyles.Any, CultureInfo.InvariantCulture, out result))
+            return true;
+        
+        result = 0;
+        return false;
+    }
+}

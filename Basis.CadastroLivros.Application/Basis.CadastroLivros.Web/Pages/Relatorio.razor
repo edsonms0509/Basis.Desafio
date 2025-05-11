@@ -1,0 +1,98 @@
+@page "/relatorio"
+@inject IRelatorioService relatorioService
+@inherits CrudBase
+
+<PageTitle>Relatório Livros com Autores</PageTitle>
+<ExibirSpinner Visible="@ExibindoSpinner" />
+<ExibirErro @ref="Erro" />
+
+<!--TODO: Devido a falta de tempo não foi possível gerar a conversão do HTML para PDF-->
+
+<div id="relatorio">
+
+    <h5>Relatório Livros com Autores</h5>
+
+    @if (LivrosComAutores.Any())
+    {
+        var relatorioAgrupado = LivrosComAutores
+        .GroupBy(l => l.Autor)  // Agrupa por Autor
+        .Select(autorGroup => new
+        {
+            Autor = autorGroup.Key,
+            Titulos = autorGroup
+                .GroupBy(l => new { l.Titulo, l.Editora, l.Edicao, l.AnoPublicacao })  // Agrupa por Título + Editora + Edição + Ano
+                .Select(tituloGroup => new
+                {
+                    Titulo = tituloGroup.Key.Titulo,
+                    Editora = tituloGroup.Key.Editora,
+                    Edicao = tituloGroup.Key.Edicao,
+                    Ano = tituloGroup.Key.AnoPublicacao,
+                    Assuntos = tituloGroup.Select(l => l.Assunto).Distinct().ToList()  // Lista de assuntos distintos
+                })
+                .ToList()
+        })
+        .ToList();
+
+
+        foreach (var autor in relatorioAgrupado)
+        {
+            <div class="pt-2 pb-2 pt-4">
+                <label class="form-label fw-bold">Autor: @autor.Autor</label>
+            </div>
+            
+            foreach (var titulo in autor.Titulos)
+            {
+                <div class="pt-2 pb-2 ps-2">
+                    <label class="form-label fw-bold">Título: @titulo.Titulo</label>
+                </div>
+                
+                <div class="pt-2 pb-2 ps-4">
+                    <label class="form-label">Editora: @titulo.Editora</label>
+                </div>
+                <div class="pt-2 pb-2 ps-4">
+                    <label class="form-label">Editora: @titulo.Editora</label>
+                </div>
+                <div class="pt-2 pb-2 ps-4">
+                    <label class="form-label">Edição: @titulo.Edicao</label>
+                </div>
+                <div class="pt-2 pb-2 ps-4">
+                    <label class="form-label">Ano: @titulo.Ano</label>
+                </div>
+
+                <div class="pt-2 pb-2 ps-4">
+                    <label class="form-label">Assuntos: @string.Join(", ", titulo.Assuntos)</label>
+                </div>
+            }
+        }
+    }
+</div>
+
+@code {
+
+    private List<VwLivrosComAutores> LivrosComAutores = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            var items = await relatorioService.GetVwLivrosComAutoresAsync();
+            if (items != null)
+            {
+                LivrosComAutores = items.ToList();
+            }
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+}

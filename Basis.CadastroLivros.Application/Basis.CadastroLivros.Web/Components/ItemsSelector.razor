@@ -1,0 +1,59 @@
+@typeparam TItem
+
+<div class="item-selector-container">
+    <div class="list-group">
+        @foreach (var item in Items)
+        {
+            <div class="list-group-item list-group-item-action 
+                 @(SelectedItems.Contains(Convert.ToInt32(GetValue(item))) ? "active" : "")"
+                 @onclick="() => ToggleItemSelection(item)">
+                <div class="form-check d-flex align-items-center">
+                    <input class="form-check-input me-3" 
+                           type="checkbox" 
+                           checked="@SelectedItems.Contains(Convert.ToInt32(GetValue(item)))"
+                           @onchange="(e) => ToggleItemSelection(item)"
+                           @onclick:stopPropagation />
+                    <label class="form-check-label flex-grow-1">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted"
+                                style="@(SelectedItems.Contains(Convert.ToInt32(GetValue(item))) ? 
+                                                                            "color: white !important;" : "")">
+                                @GetText(item)
+                            </span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<TItem> Items { get; set; } = new();
+    
+    [Parameter, EditorRequired] public Func<TItem, string> GetText { get; set; } = default!;
+    [Parameter, EditorRequired] public Func<TItem, object> GetValue { get; set; } = default!;
+
+    [Parameter]
+    public List<int> SelectedItems { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<List<int>> SelectedItemsChanged { get; set; }
+
+    private async Task ToggleItemSelection(TItem item)
+    {
+        var id = Convert.ToInt32(GetValue(item));
+        
+        if (SelectedItems.Contains(id))
+        {
+            SelectedItems.Remove(id);
+        }
+        else
+        {
+            SelectedItems.Add(id);
+        }
+
+        await SelectedItemsChanged.InvokeAsync(SelectedItems);
+    }
+}

@@ -1,0 +1,199 @@
+@typeparam TItem
+@implements IAsyncDisposable
+
+<div class="position-relative mb-2 @CssArrow()" 
+     @onfocusin="ShowAllOptions" 
+     @ref="selectOptionsElement">
+    <input @ref="inputElement"
+           class="form-control @(showOptions ? "" : "select-options-button" )"
+           @bind="searchText"
+           @bind:event="oninput"
+           @onfocus="SelectText"
+           placeholder="Selecione..."
+           @onkeydown="HandleKeyDown" style="@CssFontSize()" />
+
+    @if (showOptions && FilteredItems.Any())
+    {
+        <div class="select-options-dropdown position-absolute w-100 z-3 border">
+            <ul class="list-group cursor-pointer" 
+                style="max-height: 200px; overflow-y: auto; @CssFontSize()">
+                @foreach (var item in FilteredItems)
+                {
+                    var isSelected = EqualityComparer<TItem>.Default.Equals(item, SelectedItem);
+                    <li class="list-group-item list-group-item-action @((isSelected ? "active text-white" : ""))"
+                        @onclick="() => SelectItem(item)">
+                        @GetText(item)
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+</div>
+
+@code {
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    [Parameter, EditorRequired] public List<TItem> Items { get; set; } = new();
+    [Parameter] public Func<TItem, string> GetText { get; set; } = default!;
+    [Parameter] public Func<TItem, object> GetValue { get; set; } = default!;
+    
+    [Parameter] public EventCallback<TItem> OnItemSelected { get; set; }
+    [Parameter] public EventCallback OnEventSelect { get; set; }
+
+    [Parameter] public string FontSize { get; set; } = string.Empty;
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    [Parameter] public int Value { get; set; }
+    private int _value { get; set; }
+    
+    [Parameter] public EventCallback<int> ValueChanged { get; set; }
+    
+    private TItem? SelectedItem;
+    private string searchText = string.Empty;
+    private bool showOptions = false;
+    private ElementReference inputElement;
+    private ElementReference selectOptionsElement;
+    private bool opened = false;
+    private IJSObjectReference? module;
+    private DotNetObjectReference<SelectOptions<TItem>>? dotNetHelper;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/SelectOptions.razor.js?v1");
+            dotNetHelper = DotNetObjectReference.Create(this);
+            await module.InvokeVoidAsync("initializeSelectOptions", selectOptionsElement, dotNetHelper);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            await module.InvokeVoidAsync("disposeSelectOptions", selectOptionsElement);
+            await module.DisposeAsync();
+        }
+        dotNetHelper?.Dispose();
+    }
+
+    private IEnumerable<TItem> FilteredItems =>
+        string.IsNullOrWhiteSpace(searchText) || opened
+            ? Items
+            : Items.Where(item => GetText(item).Contains(searchText, StringComparison.OrdinalIgnoreCase));
+
+    private void ShowAllOptions()
+    {
+        showOptions = true;
+        opened = true;
+    }
+
+    private async Task SelectItem(TItem item)
+    {
+        SelectedItem = item;
+        searchText = GetText(item);
+        showOptions = false;
+
+        var id = Convert.ToInt32(GetValue(item));
+        await ValueChanged.InvokeAsync(id);
+        await OnItemSelected.InvokeAsync(item);
+
+        if (OnEventSelect.HasDelegate)
+            await OnEventSelect.InvokeAsync();
+    }
+
+    private async Task SelectText(FocusEventArgs _)
+    {
+        if (!string.IsNullOrWhiteSpace(searchText))
+        {
+            await JS.InvokeVoidAsync("setTimeout", 50);
+            await JS.InvokeAsync<string>("selectInput", inputElement);
+        }
+        showOptions = true;
+        opened = true;
+    }
+
+    [JSInvokable]
+    public void HandleClickOutside()
+    {
+        if (showOptions)
+        {
+            if (SelectedItem == null)
+                searchText = string.Empty;
+
+            showOptions = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" || e.Key == "Tab")
+        {
+            showOptions = false;
+        }
+        else
+        {
+            SelectedItem = default!;
+            await ValueChanged.InvokeAsync(0);
+            await OnItemSelected.InvokeAsync(default!);
+
+            if (OnEventSelect.HasDelegate)
+                await OnEventSelect.InvokeAsync();
+
+            opened = false;
+        }
+    }
+
+    private string CssFontSize()
+    {
+        return !string.IsNullOrEmpty(FontSize) ? $"font-size: {FontSize};" : "";
+    }
+
+    private string CssArrow()
+    {
+        if (showOptions)
+            return "input-with-arrow-up";
+        else
+            return "input-with-arrow";
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        
+        if (Value != _value)
+        {
+            _value = Value;
+
+            if (SelectedItem == null || Value != Convert.ToInt32(GetValue(SelectedItem)))
+            {
+                var item = Items.FirstOrDefault(item => Convert.ToInt32(GetValue(item)) == Value);
+                if (item == null)
+                {
+                    SelectedItem = default!;
+                }
+                else
+                {
+                    SelectedItem = Items.FirstOrDefault(item => Convert.ToInt32(GetValue(item)) == Value);
+                }
+                
+                if (SelectedItem is null)
+                {
+                    searchText = string.Empty;
+                }
+                else
+                {
+                    searchText = GetText(SelectedItem);
+                }
+
+                await OnItemSelected.InvokeAsync(SelectedItem);
+
+                if (OnEventSelect.HasDelegate)
+                {
+                    await OnEventSelect.InvokeAsync();
+                }
+            }
+        }
+
+    }
+}

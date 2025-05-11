@@ -1,0 +1,151 @@
+@page "/cadastro-autor-lista"
+@inject IAutorService autorService
+@inject NavigationManager navigation
+@inject IJSRuntime JsRuntime
+@inherits CrudBase
+
+<PageTitle>Cadastro de Autores</PageTitle>
+<ExibirSpinner Visible="@ExibindoSpinner" />
+<ExibirErro @ref="Erro" />
+
+<h5>Cadastro de Autores - Lista</h5>
+
+<div class="card p-2">
+    <div class="row">
+        <div class="col-12">
+            <CustomTable TItem="Autor"
+                        Items="genericItems"
+                        Columns="colunas"
+                        @ref="customTable">
+                <CustomContent>
+                    <button type="button" class="btn btn-sm btn-primary me-2" onclick="@(() => IrParaCadastros(0))" style="width: 100px;">
+                        <i class="bi bi-plus-lg"></i> Novo
+                    </button>
+                </CustomContent>
+                <RowTemplate>
+                    <th>@context.CodAu</th>
+                    <td>@context.Nome</td>
+                    <td>
+                        <EditDeleteButtom OnEdit="@(() => IrParaCadastros(context.CodAu))"
+                            OnDelete="@(() => ConfirmarExclusaoAsync(context))" />
+                    </td>
+                </RowTemplate>
+            </CustomTable>
+        </div>
+    </div>
+</div>
+
+<ModalConfirmar Id="modal-confirm" Title="Aviso" HtmlMessage="@HtmlMessage" OnConfirm="ExcluirAsync" />
+
+@code {
+
+    public CustomTable<Autor> customTable = default!;
+    private List<Autor> genericItems = new();
+
+    private List<CustomTable<Autor>.ColumnDefinition> colunas = new()
+    {
+        new() { Title = "#", PropertyName = "CodAu", Width = 10 },
+        new() { Title = "Nome", PropertyName = "Nome", Width = 90, Colspan="2" },
+    };
+    
+    private string HtmlMessage { get; set; } = string.Empty;
+    private int SelectedId; 
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            //carregar a grid
+            await LoadGridAsync();
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+
+    private void IrParaCadastros(int id)
+    {
+        navigation.NavigateTo($"/cadastro-autor/{id}");
+    }
+
+    private async Task ConfirmarExclusaoAsync(Autor context)
+    {
+        SelectedId = context.CodAu;
+
+        HtmlMessage = $"<p>Confirma a <b>exclusão</b> do autor #{context.CodAu} ?</p><br>";
+        HtmlMessage += "<div style='margin-left: 15px;'>";
+        HtmlMessage += $"<p>Nome: {context.Nome}</p>";
+        HtmlMessage += "</div>";
+
+        //open modal confirm
+        await JsRuntime.InvokeVoidAsync("ShowModal", "modal-confirm");
+    }
+
+    private async Task ExcluirAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            await autorService.Delete(SelectedId);
+
+            //atualizar a lista da grid
+            var item = genericItems.FirstOrDefault(p => p.CodAu == SelectedId);
+            
+            if (item != null)
+            {
+                genericItems.Remove(item);
+            }
+
+            //atualizar a grid
+            customTable.Refresh();
+            StateHasChanged();
+
+            await JsRuntime.InvokeVoidAsync("CloseModal");
+
+            //Toast
+            await JsRuntime.InvokeVoidAsync("ShowToast", $"O autor '{item?.Nome}' foi excluído");
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+
+    private async Task LoadGridAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            var items = await autorService.GetItemsAsync();
+            
+            genericItems.Clear();
+            genericItems = items.OrderBy(g => g.CodAu).ToList();
+
+            customTable.Refresh();
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+}

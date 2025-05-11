@@ -1,0 +1,39 @@
+@if (isVisible)
+{
+    <div class="alert alert-danger content-float-message" style="padding-right: 55px;">
+        <span>@MensagemErro</span>
+        <button type="button" class="btn btn-danger float-end" @onclick="FecharMensagem">&times;</button>
+    </div>
+}
+
+@code {
+    private bool isVisible = false;
+
+    [Parameter]
+    public string MensagemErro { get; set; } = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(MensagemErro))
+        {
+            ShowMessage();
+        }
+    }
+
+    public void UpdateMessage(string message)
+    {
+        MensagemErro = message;
+        ShowMessage();
+        StateHasChanged();
+    }
+
+    private void ShowMessage()
+    {
+        isVisible = true;
+    }
+
+    private void FecharMensagem()
+    {
+        isVisible = false;
+    }
+}

@@ -1,0 +1,16 @@
+<div class="text-end">
+    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="OnEdit">
+        <i class="bi bi-pencil"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" @onclick="OnDelete">
+        <i class="bi bi-trash"></i>
+    </button>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback OnEdit { get; set; }
+
+    [Parameter]
+    public EventCallback OnDelete { get; set; }
+}

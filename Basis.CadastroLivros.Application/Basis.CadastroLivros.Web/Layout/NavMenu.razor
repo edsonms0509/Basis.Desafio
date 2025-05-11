@@ -1,0 +1,77 @@
+﻿<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">Basis.CadastroLivros.Web</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="flex-column px-2">
+        <div class="nav-item">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <i class="bi bi-house bi-nav-link" aria-hidden="true"></i> Home
+            </NavLink>
+        </div>
+        <div class="nav-item">
+            <NavLink class="nav-link" href="javascript:void(0);" @onclick="() => expandCadastro = !expandCadastro">
+                <i class="bi bi-pencil-square bi-nav-link" aria-hidden="true"></i> Cadastros
+            </NavLink>
+        </div>
+        @if (expandCadastro)
+        {
+            <div class="nav-item ps-2">
+                <NavLink class="nav-link" href="cadastro-livro-lista">
+                    <i class="bi bi-book bi-nav-link" aria-hidden="true"></i> Livro
+                </NavLink>
+            </div>
+            <div class="nav-item ps-2">
+                <NavLink class="nav-link" href="cadastro-autor-lista">
+                    <i class="bi bi-person bi-nav-link" aria-hidden="true"></i> Autor
+                </NavLink>
+            </div>
+            <div class="nav-item ps-2">
+                <NavLink class="nav-link" href="cadastro-assunto-lista">
+                    <i class="bi bi-bookmark bi-nav-link" aria-hidden="true"></i> Assunto
+                </NavLink>
+            </div>
+            <div class="nav-item ps-2">
+                <NavLink class="nav-link" href="cadastro-canal-de-venda-lista">
+                    <i class="bi bi-cart bi-nav-link" aria-hidden="true"></i> Canal de Venda
+                </NavLink>
+            </div>
+        }
+        <div class="nav-item">
+            <NavLink class="nav-link" href="relatorio">
+                <i class="bi bi-file-earmark-text bi-nav-link" aria-hidden="true"></i> Relatório
+            </NavLink>
+        </div>
+        <div class="nav-item">
+            <NavLink class="nav-link" href="javascript:void(0);" @onclick="() => expandAdministrativo = !expandAdministrativo">
+                <i class="bi bi-gear bi-nav-link" aria-hidden="true"></i> Administrativo
+            </NavLink>
+        </div>
+        @if (expandAdministrativo)
+        {
+            <div class="nav-item ps-2">
+                <NavLink class="nav-link" href="perfil-usuario-lista">
+                    <i class="bi bi-person-badge bi-nav-link" aria-hidden="true"></i> Perfis & Usuários
+                </NavLink>
+            </div>
+        }
+    </nav>
+</div>
+
+@code {
+    private bool expandCadastro = false;
+    private bool expandAdministrativo = false;
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}

@@ -1,0 +1,53 @@
+<div class="spinner-container d-flex justify-content-center" style="@VisibleStyle(Visible)">
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+<div class="overlay" style="@VisibleOverlayStyle(Visible)"></div>
+
+@code
+{
+    [Parameter]
+    public bool Visible {get; set;} = true;
+
+    [Parameter]
+    public bool HideOverlay {get; set;} = false;
+
+    private string VisibleStyle(bool value)
+    {
+        if (value)
+        {
+            return "visibility: visible;";
+        }
+        else
+        {
+            return "visibility: hidden;";
+        }
+    }
+
+    private string VisibleOverlayStyle(bool value)
+    {
+        if (HideOverlay)
+        {
+            return VisibleStyle(false);
+        }
+        else
+        {
+            return VisibleStyle(value);
+        }
+    }
+
+    public void Show(bool hideOverlay = true)
+    {
+        Visible = true;
+        HideOverlay = hideOverlay;
+        StateHasChanged();
+    }
+
+    public void Hide()
+    {
+        Visible = false;
+        HideOverlay = true;
+        StateHasChanged();
+    }
+}

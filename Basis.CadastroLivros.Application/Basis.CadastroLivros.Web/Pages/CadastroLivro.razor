@@ -1,0 +1,318 @@
+@page "/cadastro-livro/{Id:int}"
+@inject ILivroService livroService
+@inject IAutorService autorService
+@inject IAssuntoService assuntoService
+@inject ICanalVendaService canalVendaService
+@inject NavigationManager navigation
+@inject IJSRuntime JsRuntime
+@inherits CrudBase
+
+<h5>Cadastro de Livros - @Acao</h5>
+
+<EditForm Model="model" OnSubmit="HandleSubmit">
+    <div class="card p-3">
+        <div class="row pb-2">
+            <div class="col-6">
+                <label class="form-label">Título</label>
+                <input @bind="model.Titulo" 
+                    placeholder="Digite o título completo..."
+                    class="form-control"
+                    maxlength="40" autocomplete="off" />
+            </div>
+            <div class="col-6">
+                <label class="form-label">Editora</label>
+                <input @bind="model.Editora" 
+                    placeholder="Digite o nome da editora..."
+                    class="form-control"
+                    maxlength="40" autocomplete="off" />
+            </div>
+        </div>
+        <div class="row pb-4">
+            <div class="col-6">
+                <div class="row">
+                    <div class="col-6">
+                        <label class="form-label">Edição</label>
+                        <NumericInput @bind-Valor="model.Edicao" AceitaDecimal="false" MaxDigitosInteiros="4" 
+                            Class="form-control text-center" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Ano de publicação</label>
+                        <NumericInput @bind-Valor="model.AnoPublicacao" AceitaDecimal="false" MaxDigitosInteiros="4" 
+                            Class="form-control text-center"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-4">
+                <div class="border p-2 rounded-3">
+                    <label class="form-label">Autor(es)</label>
+                    <ItemsSelector 
+                        Items="@AutoresDisponiveis" 
+                        GetValue="x => x.CodAu" GetText="x => x.Nome"
+                        SelectedItems="@model.Autores"
+                        SelectedItemsChanged="@OnAutoresSelected" />
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="border p-2 rounded-3">
+                    <label class="form-label">Assunto(s)</label>
+                    <ItemsSelector 
+                        Items="@AssuntosDisponiveis" 
+                        GetValue="x => x.CodAs" GetText="x => x.Descricao"
+                        SelectedItems="@model.Assuntos"
+                        SelectedItemsChanged="@OnAssuntosSelected" />
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="border p-2 rounded-3">
+                    <label class="form-label">Valor(es) venda</label>
+                    <button type="button" class="btn btn-sm btn-primary ms-2 pt-0 pb-0 mb-0 float-end"
+                        @onclick="HandleOpenModalCanalVendaAsync">+ Adicionar</button>
+                    <div class="overflow-y-auto">
+                        <table class="table table-striped table-bordered table-fixed mb-0">
+                            <thead>
+                                <tr class="text-center align-middle">
+                                    <th class="col-1">#</th>
+                                    <th class="col-6">Canal</th>
+                                    <th class="col-5">Preço</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var precoVenda in SelectedPrecosDeVenda)
+                                {
+                                    <tr class="align-middle">
+                                        <th class="col-1">
+                                            <i class="bi bi-x-circle-fill text-danger cursor-pointer m-0 ms-1"
+                                                @onclick="() => RemoverPrecoVenda(precoVenda)"></i><br>
+                                        </th>
+                                        <td>@precoVenda.DescricaoCanalVenda</td>
+                                        <td class="text-end">R$ @precoVenda.Preco_De_Venda</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row text-center mt-2">
+        <div class="col-12">
+            <button class="btn btn-sm btn-outline-primary" type="submit" style="width: 100px;">
+                <i class="bi bi-check-circle"></i> Salvar
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" style="width: 100px;"
+                @onclick="HandleInvokeVoltar">
+                <i class="bi bi-arrow-left-circle"></i> Cancelar
+            </button>
+        </div>
+    </div>
+</EditForm>
+
+<ModalLivroPrecoVenda @bind-SelectedPrecoVenda="SelectedPrecoDeVenda" 
+    ListaSelectedPrecosVenda="SelectedPrecosDeVenda" @ref="modalLivroPrecoVendaRef"
+    OnConfirm="HandleModalPrecoVendaConfirmAsync" />
+
+@code {
+
+    //model do formulário
+    public LivroModel model = new();
+
+    //autores disponiveis
+    public List<Autor> AutoresDisponiveis = [];
+    public List<Assunto> AssuntosDisponiveis = [];
+    public List<LivroPrecoVendaModel> SelectedPrecosDeVenda = [];
+    public LivroPrecoVendaModel SelectedPrecoDeVenda = new();
+
+    private ModalLivroPrecoVenda modalLivroPrecoVendaRef = default!;
+    
+    public string Acao => Id == 0 ? "Inserindo" : "Alterando";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            //obter os autores
+            var autores = await autorService.GetItemsAsync();
+            if (autores != null)
+            {
+                AutoresDisponiveis = autores.ToList();
+            }
+
+            //obter os assuntos
+            var assuntos = await assuntoService.GetItemsAsync();
+            if (assuntos != null)
+            {
+                AssuntosDisponiveis = assuntos.ToList();
+            }
+
+
+            //se Id for maior que 0, está editando, buscar os dados na base de dados
+            if (Id > 0)
+            {
+                model = await livroService.GetItemByIdAsync(Id);
+
+
+                //obter os preços de venda
+                var canaisVenda = await canalVendaService.GetItemsAsync();
+                if (canaisVenda != null)
+                {
+                    SelectedPrecosDeVenda = model.PrecosVenda.Select(c => new LivroPrecoVendaModel
+                    {
+                        Canal_De_Venda_Cod_Tpv = c.Canal_De_Venda_Cod_Tpv,
+                        DescricaoCanalVenda = canaisVenda
+                                                .FirstOrDefault(cv => cv.Cod_Tpv == c.Canal_De_Venda_Cod_Tpv)?
+                                                .Descricao ?? string.Empty,
+                        Preco_De_Venda = c.Preco_De_Venda
+                    }).ToList();
+                }
+            }
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+
+    public async Task HandleSubmit()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            if (! await IsValidFields() )
+            {
+                return;
+            }
+
+
+            //carregar os preços de venda na model
+            model.PrecosVenda = SelectedPrecosDeVenda.Select(p => new Livro_Preco_Venda
+            {
+                Canal_De_Venda_Cod_Tpv = p.Canal_De_Venda_Cod_Tpv,
+                Preco_De_Venda = p.Preco_De_Venda
+            }).ToList();
+
+            
+            //se o código for zero, Insere, senão Atualiza
+            if (model.Codl == 0)
+            {
+                await livroService.Insert(model);
+            }
+            else
+            {
+                await livroService.Update(model);
+            }
+
+            //Toast
+            await JsRuntime.InvokeVoidAsync("ShowToast", $"O livro '{model.Titulo}' foi salvo com sucesso");
+            
+            //voltar para a lista de cadastrados
+            HandleInvokeVoltar();
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+
+
+    private async Task<bool> IsValidFields()
+    {
+        IList<string> fields = new List<string>();
+        
+        if (string.IsNullOrEmpty(model.Titulo))
+        {
+            fields.Add(" * Título");
+        }
+
+        if (string.IsNullOrEmpty(model.Editora))
+        {
+            fields.Add(" * Editora");
+        }
+ 
+        if (model.Edicao == null)
+        {
+            fields.Add(" * Edição");
+        }
+
+        if (string.IsNullOrEmpty(model.AnoPublicacao))
+        {
+            fields.Add(" * Ano de Publicação");
+        }
+        
+        if (!model.Autores.Any())
+        {
+            fields.Add(" * Autor");
+        }
+
+        if (fields.Count > 0)
+        {
+            var fieldsInfo = String.Join("<br>", fields.ToArray());;
+            await ToastValidationInfo(fieldsInfo);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void OnAutoresSelected(List<int> selectedIds)
+    {
+        //seta a variável de Ids selecionados
+        model.Autores = selectedIds;
+        StateHasChanged();
+    }
+
+    private void OnAssuntosSelected(List<int> selectedIds)
+    {
+        //seta a variável de Ids selecionados
+        model.Assuntos = selectedIds;
+        StateHasChanged();
+    }
+
+    private async Task ToastValidationInfo(string fields)
+    {
+        await JsRuntime.InvokeVoidAsync("ShowToastWarning", $"<b>Necessário informar os campos:</b><br>{fields}.");
+    }
+
+    private void HandleInvokeVoltar()
+    {
+        navigation.NavigateTo($"/cadastro-livro-lista");
+    }
+
+    private void HandleModalPrecoVendaConfirmAsync()
+    {
+        SelectedPrecosDeVenda.Add(SelectedPrecoDeVenda);
+        StateHasChanged();
+    }
+
+    private async Task HandleOpenModalCanalVendaAsync()
+    {
+
+        modalLivroPrecoVendaRef.Clear();
+
+        //open modal confirm
+        await JsRuntime.InvokeVoidAsync("ShowModal", "modal-livro-preco-venda");
+    }
+
+    protected void RemoverPrecoVenda(LivroPrecoVendaModel item)
+    {
+        SelectedPrecosDeVenda.Remove(item);
+        StateHasChanged();
+    }
+
+}

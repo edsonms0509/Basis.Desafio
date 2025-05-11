@@ -1,0 +1,47 @@
+<!-- Modal -->
+<div class="modal fade" id="@Id" tabindex="-1" aria-labelledby="modal-confirm-label" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">@Title</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        @HtmlFormatedMessage
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-arrow-left-circle"></i> Cancelar
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-primary" 
+            onclick="@( async () => HandleInvokeConfirmAsync())">
+            <i class="bi bi-check-circle"></i> Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+@code {
+
+    [Parameter]
+    public string Id {get; set;} = "modal-confirm";
+
+    [Parameter]
+    public string Title {get; set;} = "Confirmar";
+
+    [Parameter]
+    public string HtmlMessage {get; set;} = string.Empty;
+    private MarkupString HtmlFormatedMessage => new(HtmlMessage);
+
+    [Parameter]
+    public EventCallback OnConfirm {get; set;}
+
+
+    private async Task HandleInvokeConfirmAsync()
+    {
+        await OnConfirm.InvokeAsync();
+    }
+    
+}

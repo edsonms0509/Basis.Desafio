@@ -1,0 +1,44 @@
+.table tbody tr:hover {
+    cursor: pointer;
+}
+
+.table tbody tr {
+    vertical-align: middle !important;
+}
+
+.table {
+    font-size: 14px;
+}
+
+/* Fixando o restante do cabeçalho no topo */
+.table thead th {
+    position: sticky;
+    top: 0;
+    background-color: white; /* Cor de fundo do cabeçalho */
+    z-index: 1; /* Eleva o cabeçalho sobre o conteúdo */
+    box-shadow: inset 0px -2px 0px 0px #a8acaf;
+    vertical-align: middle;
+}
+
+.table-container {
+    height: calc(100vh - 160px);
+    overflow: auto;
+    overflow-x: hidden;
+}
+
+.fs10 {
+    font-size: 10px;
+}
+
+.fs13 {
+    font-size: 13px;
+}
+
+.fsi13 {
+    font-size: 13px;
+    font-style: italic;
+}
+
+.fs14 {
+    font-size: 14px;
+}

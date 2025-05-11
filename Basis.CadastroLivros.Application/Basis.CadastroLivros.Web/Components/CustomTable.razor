@@ -1,0 +1,256 @@
+@using System.Reflection
+@using System.Linq.Expressions
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using System.Globalization
+@typeparam TItem
+@inject IJSRuntime JsRuntime
+
+<div class="d-flex mb-1">
+    @CustomContent
+    <div class="input-group">
+        <span class="input-group-text bg-white">
+            <i class="bi bi-search"></i>
+        </span>
+        <input type="text" class="form-control" @oninput="OnSearchText" placeholder="Filtrar..." autocomplete="off">
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-success ms-2" @onclick="ExportToExcel">
+        Excel
+    </button>
+</div>
+
+<div class="table-container">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                @foreach (var column in Columns)
+                {
+                    <th @onclick="() => SortBy(column.PropertyName)" class="@column.CssClass"
+                            style="cursor: pointer;@CssWidth(column)" colspan="@column.Colspan">
+                        @column.Title
+                        @if (SortColumn == column.PropertyName)
+                        {
+                            <span class="ms-1 fs10">
+                                @(SortDescending ? "▼" : "▲")
+                            </span>
+                        }
+                    </th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+        <Virtualize ItemsProvider="LoadItems" Context="item" @key="VirtualizeKey">
+            <ItemContent>
+                <tr>
+                    @RowTemplate(item)
+                </tr>
+            </ItemContent>
+        </Virtualize>
+        </tbody>
+    </table>
+</div>
+<div class="d-flex mt-2 justify-content-between align-items-center">
+    <div class="text-end w-100 fsi13">
+        @if (RecordCount == string.Empty)
+        {
+            @("nenhum registro encontrado")
+        }
+        else
+        {
+            var recordPlural = RecordPlural;
+            @($"{RecordCount} registro{recordPlural} encontrado{recordPlural}")
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<TItem> Items { get; set; } = Enumerable.Empty<TItem>();
+    [Parameter, EditorRequired] public List<ColumnDefinition> Columns { get; set; } = new();
+    [Parameter, EditorRequired] public RenderFragment<TItem> RowTemplate { get; set; } = default!;
+    [Parameter] public RenderFragment CustomContent { get; set; } = default!;
+    
+    private string VirtualizeKey { get; set; } = "";
+    private string SearchText = "";
+    private string? SortColumn;
+    private bool SortDescending;
+
+    private string? SelectedPage = string.Empty;
+    private List<Func<TItem, object?>>? _propertyAccessors;
+    private List<TItem>? _filteredItems;
+
+    private CancellationTokenSource? _cts;
+
+    private async void OnSearchText(ChangeEventArgs e)
+    {
+        SearchText = e.Value?.ToString() ?? string.Empty;
+
+        // Cancela qualquer pesquisa anterior ainda pendente (debounce)
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        try
+        {
+            await Task.Delay(200, token); // Aguarda 200ms para debounce
+            if (!token.IsCancellationRequested)
+            {
+                FiltrarItems();
+
+                VirtualizeKey = SearchText;
+                
+                StateHasChanged();
+            }
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private void FiltrarItems()
+    {
+        if (string.IsNullOrWhiteSpace(SearchText))
+        {
+            _filteredItems = Items.ToList();
+        }
+        else
+        {
+            _propertyAccessors ??= Columns
+                .Select(col =>
+                {
+                    var param = Expression.Parameter(typeof(TItem), "x");
+                    var body = Expression.PropertyOrField(param, col.PropertyName);
+                    var convert = Expression.Convert(body, typeof(object));
+                    var lambda = Expression.Lambda<Func<TItem, object?>>(convert, param);
+                    return lambda.Compile();
+                })
+                .ToList();
+
+            _filteredItems = Items.Where(item =>
+                item != null && _propertyAccessors.Any(accessor =>
+                {
+                    var value = accessor(item);
+                    return value != null && value.ToString()!.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+                })).ToList();
+        }
+
+        SortItems();
+    }
+
+    private void SortBy(string column)
+    {
+        if (SortColumn == column)
+        {
+            SortDescending = !SortDescending;
+        }
+        else
+        {
+            SortColumn = column;
+            SortDescending = false;
+        }
+
+        SortItems();
+
+        VirtualizeKey = $"{SortColumn}-{SortDescending}";
+    }
+
+    private void SortItems()
+    {
+        if (_filteredItems == null) return;
+
+        if (SortColumn != null)
+        {
+            _filteredItems = (SortDescending
+                ? _filteredItems.OrderByDescending(i => i?.GetType().GetProperty(SortColumn!)?.GetValue(i))
+                : _filteredItems.OrderBy(i => i?.GetType().GetProperty(SortColumn!)?.GetValue(i))).ToList();
+        }
+    }
+
+    private ValueTask<ItemsProviderResult<TItem>> LoadItems(ItemsProviderRequest request)
+    {
+        if (_filteredItems == null || !_filteredItems.Any())
+        {
+            FiltrarItems();
+        }
+        
+        var items = _filteredItems!.Skip(request.StartIndex).Take(request.Count).ToList();
+        var result = new ItemsProviderResult<TItem>(items, _filteredItems!.Count);
+
+        return ValueTask.FromResult(result);
+    }
+    
+    private string RecordCount
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(SearchText))
+            {
+                if (Items.Any())
+                    return FmtPtBr(Items.Count());
+            }
+            else
+            {
+                if (_filteredItems?.Any() ?? false)
+                    return FmtPtBr(_filteredItems!.Count());
+            }
+            
+            return string.Empty;
+        }
+    }
+        
+    private string RecordPlural => 
+        RecordCount == "0" || RecordCount == "1" ? string.Empty : $"(s)";
+
+    private string FmtPtBr(int valor)
+    {
+        // Cultura brasileira usa ponto como separador de milhar
+        var cultura = new CultureInfo("pt-BR");
+        return valor.ToString("N0", cultura);
+    }
+    
+    private string CssWidth(ColumnDefinition column)
+    {
+        return $"width: {column.Width}%";
+    }
+
+    public class ColumnDefinition
+    {
+        public string Title { get; set; } = "";
+        public string PropertyName { get; set; } = "";
+        public string Colspan { get; set; } = "";
+        public string CssClass { get; set; } = "";
+        public int Width { get; set; }
+    }
+    
+    public void Refresh()
+    {
+        FiltrarItems();
+
+        long timestampMillis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        VirtualizeKey = timestampMillis.ToString();
+    }
+
+    private async Task ExportToExcel()
+    {
+        using var workbook = new ClosedXML.Excel.XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Dados");
+
+        for (int i = 0; i < Columns.Count; i++)
+        {
+            worksheet.Cell(1, i + 1).Value = Columns[i].Title;
+        }
+
+        var data = _filteredItems ?? Items.ToList();
+        for (int row = 0; row < data.Count; row++)
+        {
+            for (int col = 0; col < Columns.Count; col++)
+            {
+                var value = data[row]?.GetType().GetProperty(Columns[col].PropertyName)?.GetValue(data[row]);
+                worksheet.Cell(row + 2, col + 1).Value = value?.ToString() ?? "";
+            }
+        }
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+
+        var base64 = Convert.ToBase64String(stream.ToArray());
+        await JsRuntime.InvokeVoidAsync("downloadFileFromStream", "dados.xlsx", base64);
+    }
+}

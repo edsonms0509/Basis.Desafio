@@ -1,0 +1,25 @@
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Basis.CadastroLivros.Web;
+using Basis.CadastroLivros.Web.Services.Interfaces;
+using Basis.CadastroLivros.Web.Services;
+
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.RootComponents.Add<App>("#app");
+builder.RootComponents.Add<HeadOutlet>("head::after");
+
+var baseUrl = "https://localhost:7281";
+builder.Services.AddScoped(sp => new HttpClient
+{
+    BaseAddress = new Uri(baseUrl)
+});
+
+//builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+
+builder.Services.AddScoped<ILivroService, LivroService>();
+builder.Services.AddScoped<IAutorService, AutorService>();
+builder.Services.AddScoped<IAssuntoService, AssuntoService>();
+builder.Services.AddScoped<ICanalVendaService, CanalVendaService>();
+builder.Services.AddScoped<IRelatorioService, RelatorioService>();
+
+await builder.Build().RunAsync();

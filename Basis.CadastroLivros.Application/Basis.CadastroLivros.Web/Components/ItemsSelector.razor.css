@@ -1,0 +1,22 @@
+.item-selector-container {
+    /* max-height: 400px; */
+    height: 200px;
+    overflow-y: auto;
+}
+
+.list-group-item {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.list-group-item:hover:not(.active) {
+    background-color: #f8f9fa;
+}
+
+.list-group-item.active {
+    border-color: var(--bs-body-bg);
+}
+
+.form-check-input {
+    cursor: pointer;
+}

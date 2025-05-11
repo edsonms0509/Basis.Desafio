@@ -1,0 +1,27 @@
+@inject IJSRuntime JS
+@typeparam TItem
+
+<input id="@InputId"
+       class="@Class"
+       @bind:event="oninput"
+       @bind:get=this.Valor
+       @bind:set="(value) => this.ValorChanged.InvokeAsync(value)" />
+
+@code {
+    [Parameter] public TItem Valor { get; set; } = default!;
+    [Parameter] public EventCallback<TItem> ValorChanged { get; set; }
+    [Parameter] public bool AceitaDecimal { get; set; }
+    [Parameter] public int MaxCasasDecimais { get; set; } = 2;
+    [Parameter] public int MaxDigitosInteiros { get; set; } = 10;
+    [Parameter] public string Class { get; set; } = "form-control";
+
+    private string InputId { get; } = $"input_{Guid.NewGuid()}";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("setupNumericInput", InputId, AceitaDecimal, MaxCasasDecimais, MaxDigitosInteiros);
+        }
+    }
+}

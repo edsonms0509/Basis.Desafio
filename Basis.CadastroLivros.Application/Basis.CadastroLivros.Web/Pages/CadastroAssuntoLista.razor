@@ -1,0 +1,151 @@
+@page "/cadastro-assunto-lista"
+@inject IAssuntoService assuntoService
+@inject NavigationManager navigation
+@inject IJSRuntime JsRuntime
+@inherits CrudBase
+
+<PageTitle>Cadastro de Assuntos</PageTitle>
+<ExibirSpinner Visible="@ExibindoSpinner" />
+<ExibirErro @ref="Erro" />
+
+<h5>Cadastro de Assuntos - Lista</h5>
+
+<div class="card p-2">
+    <div class="row">
+        <div class="col-12">
+            <CustomTable TItem="Assunto"
+                        Items="genericItems"
+                        Columns="colunas"
+                        @ref="customTable">
+                <CustomContent>
+                    <button type="button" class="btn btn-sm btn-primary me-2" onclick="@(() => IrParaCadastros(0))" style="width: 100px;">
+                        <i class="bi bi-plus-lg"></i> Novo
+                    </button>
+                </CustomContent>
+                <RowTemplate>
+                    <th>@context.CodAs</th>
+                    <td>@context.Descricao</td>
+                    <td>
+                        <EditDeleteButtom OnEdit="@(() => IrParaCadastros(context.CodAs))"
+                            OnDelete="@(() => ConfirmarExclusaoAsync(context))" />
+                    </td>
+                </RowTemplate>
+            </CustomTable>
+        </div>
+    </div>
+</div>
+
+<ModalConfirmar Id="modal-confirm" Title="Aviso" HtmlMessage="@HtmlMessage" OnConfirm="ExcluirAsync" />
+
+@code {
+
+    public CustomTable<Assunto> customTable = default!;
+    private List<Assunto> genericItems = new();
+
+    private List<CustomTable<Assunto>.ColumnDefinition> colunas = new()
+    {
+        new() { Title = "#", PropertyName = "CodAs", Width = 10 },
+        new() { Title = "Descrição", PropertyName = "Descricao", Width = 90, Colspan="2" },
+    };
+    
+    private string HtmlMessage { get; set; } = string.Empty;
+    private int SelectedId; 
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            //carregar a grid
+            await LoadGridAsync();
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+
+    private void IrParaCadastros(int id)
+    {
+        navigation.NavigateTo($"/cadastro-assunto/{id}");
+    }
+
+    private async Task ConfirmarExclusaoAsync(Assunto context)
+    {
+        SelectedId = context.CodAs;
+
+        HtmlMessage = $"<p>Confirma a <b>exclusão</b> do assunto #{context.CodAs} ?</p><br>";
+        HtmlMessage += "<div style='margin-left: 15px;'>";
+        HtmlMessage += $"<p>Assunto: {context.Descricao}</p>";
+        HtmlMessage += "</div>";
+
+        //open modal confirm
+        await JsRuntime.InvokeVoidAsync("ShowModal", "modal-confirm");
+    }
+
+    private async Task ExcluirAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            await assuntoService.Delete(SelectedId);
+
+            //atualizar a lista da grid
+            var item = genericItems.FirstOrDefault(p => p.CodAs == SelectedId);
+            
+            if (item != null)
+            {
+                genericItems.Remove(item);
+            }
+
+            //atualizar a grid
+            customTable.Refresh();
+            StateHasChanged();
+
+            await JsRuntime.InvokeVoidAsync("CloseModal");
+
+            //Toast
+            await JsRuntime.InvokeVoidAsync("ShowToast", $"O assunto '{item?.Descricao}' foi excluído");
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+
+    private async Task LoadGridAsync()
+    {
+        try
+        {
+            ExibirSpinner();
+
+            var items = await assuntoService.GetItemsAsync();
+            
+            genericItems.Clear();
+            genericItems = items.OrderBy(g => g.CodAs).ToList();
+
+            customTable.Refresh();
+        }
+        catch (Exception ex)
+        {
+            Erro.UpdateMessage(ex.Message);
+        }
+        finally
+        {
+            OcultarSpinner();
+        }
+    }
+}
